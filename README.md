@@ -18,7 +18,6 @@ The framework is **physics-agnostic** by design: the numerical core (DG assembly
 - [8. Extending DIMAGNO-DG to a new fluid / problem](#8-extending-dimagno-dg-to-a-new-fluid--problem)
 - [9. Output and postprocessing](#9-output-and-postprocessing)
 - [10. Known issues / TODO](#10-known-issues--todo)
-- [11. License & citation](#11-license--citation)
 
 ---
 
@@ -321,8 +320,3 @@ A few inconsistencies were spotted while documenting the code; flagging them her
 
 - **`--metrics`** postprocessing block is commented out in `run.py` (`postpro/metrics.py` referenced but not wired up).
 - **`HLLE` numerical flux** is explicitly marked `# TODO complete, not working at the moment` in `NumericalFluxes.py`.
-- **Electron closure description (§6)** needs to be rewritten now that `ElectronSolver.py` and its CLI flags (`--electron-update`, `--je-condition`, `--n-electron-iter`) have been removed — confirm and document whatever mechanism now provides `He`/`A_Te` (or whether this is a currently-missing piece of functionality).
-
-## 11. License & citation
-
-*(Add license and citation information here — e.g. paper reference, authors, institution.)*
