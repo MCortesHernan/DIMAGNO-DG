@@ -1,8 +1,9 @@
 # DIMAGNO-DG
 
-**DIMAGNO-DG** is a Discontinuous Galerkin (DG) multi-fluid PDE solver built on [FEniCS](https://fenicsproject.org/) (legacy / `dolfin` + `ufl_legacy`). It integrates systems of conservation laws (mass, momentum, energy) for an arbitrary number of fluid species toward their **steady state**, using a Runge–Kutta time-marching scheme as a pseudo-time relaxation. 
+**DIMAGNO-DG** is a Discontinuous Galerkin (DG) multi-fluid PDE solver built on [FEniCS](https://fenicsproject.org/) (legacy / `dolfin` + `ufl_legacy`) aimed at the simulation of plasma flows in the context of space plasma propulsion. 
+The model assumes well-magnetized electrons and any magnetization degree for ions, and it is thus appropriate to study the plasma flow in magnetic nozzles and similar systems. It integrates systems of conservation laws (mass, momentum, energy) for an arbitrary number of fluid species toward their **steady state**, using a Runge–Kutta time-marching scheme as a pseudo-time relaxation. 
 
-The framework is **physics-agnostic** by design: the numerical core (DG assembly, numerical fluxes, time propagators) operates on any model that implements a small abstract interface (`PhysicalModel`, `BC`). The repository currently ships one fully worked instance of this interface: a **2D axisymmetric magnetic-nozzle plasma expansion** solver, coupling ion and neutral conservation equations with a magnetized, collisional electron closure.
+The framework is quite **physics-agnostic** by design: the numerical core (DG assembly, numerical fluxes, time propagators) operates on any model that implements a small abstract interface (`PhysicalModel`, `BC`). The repository currently ships one fully worked instance of this interface: a **2D axisymmetric magnetic-nozzle plasma expansion** solver, coupling ion and neutral conservation equations with a magnetized, collisional electron closure.
 
 ---
 
