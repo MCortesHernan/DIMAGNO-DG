@@ -1,0 +1,13 @@
+
+# ─────────────────────────────────────────────────────────────
+# config/tests/test_B0.yaml
+# Test B0: vacuum ideal, magnetic field strength (B0=400.0), without background pressure
+# Only the differences from base.yaml are declared
+# ─────────────────────────────────────────────────────────────
+
+test_name: B0
+
+initial_conditions:
+  eta_u:  0.0                   # Efficiency of utilization n_i/(n_i+n_n)
+  Mi0:    0.5                   # Ionic Mach number at the throat
+  background_pressure_pa: 0.0   # Background pressure [Pa] (0.0 = no background)

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "DIMAGNO-DG"
+type: software
+authors:
+  - family-names: "Cortes-Hernan"
+    given-names: "Manuel"
+    affiliation: "Universidad Carlos III de Madrid"
+    email: "manuelco@pa.uc3m.es"
+  - family-names: "Merino"
+    given-names: "Mario"
+    affiliation: "Universidad Carlos III de Madrid"
+    email: "mario.merino@uc3m.es"
+  - family-names: "Garcia-Lahuerta"
+    given-names: "Diego"
+    affiliation: "Universidad Carlos III de Madrid"
+    email: "dieggarc@ing.uc3m.es"
+repository-code: "https://github.com/MCortesHernan/DIMAGNO-DG"

@@ -1,0 +1,13 @@
+
+# ─────────────────────────────────────────────────────────────
+# config/tests/test_U.yaml
+# Test U: partial utilization (eta=0.625), without background pressure
+# Only the differences from base.yaml are declared
+# ─────────────────────────────────────────────────────────────
+
+test_name: U
+
+initial_conditions:
+  eta_u:  0.625                 # Efficiency of utilization n_i/(n_i+n_n)
+  Mi0:    0.5                   # Ionic Mach number at the throat
+  background_pressure_pa: 0.0   # Background pressure [Pa] (0.0 = no background)

@@ -1,0 +1,13 @@
+
+# ─────────────────────────────────────────────────────────────
+# config/tests/test_B4.yaml
+# Test B4: background pressure (4e-3), magnetic field strength (B4=400.0), with background pressure
+# Only the differences from base.yaml are declared
+# ─────────────────────────────────────────────────────────────
+
+test_name: B4
+
+initial_conditions:
+  eta_u:  0.0                     # Efficiency of utilization n_i/(n_i+n_n)
+  Mi0:    0.5                     # Ionic Mach number at the throat
+  background_pressure_pa: 4e-3    # Background pressure [Pa] (0.0 = no background)

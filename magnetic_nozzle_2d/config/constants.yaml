@@ -1,0 +1,80 @@
+# ─────────────────────────────────────────────────────────────
+# constants.yaml  —  global thruster and plasma parameters (generally constant)
+# Tests rewrite over the constants defined here
+# ─────────────────────────────────────────────────────────────
+
+# ── Base Physics ────────────────────────────────────────
+physical:
+  R0:        0.018       # Thruster radius [m]
+  Te0:       10.0        # Electron temperature [eV]
+  E_ion:     12.1        # Ionization energy of xenon [eV]
+  B0:        400.0       # Magnetic field [G]
+  B_norm:    2280.0      # Field normalization [G]
+  A:         131         # Atomic number (Xe)
+  m_dot_i_ng: 100.0      # Ionic mass flow [ng/s]
+
+# ── Collisional parameters ─────────────────────────────────────────
+collisions:
+  sigma_0_i:   5.0e-20   # Ionization [m²]
+  sigma_0_cex: 81.0e-20  # Charge exchange [m²]
+  sigma_0_en:  27.0e-20  # Elastic electron-neutral [m²]
+
+# ── Species parameters ────────────────────────────────────────
+electrons:
+  gamma: 1.2
+
+ions:
+  gamma: 1.6667           # 5/3
+  T_i_eV: 0.1             # Ion Temperature [eV]
+  e_internal: false
+
+neutrals:
+  gamma:        1.6667    # 5/3
+  T_n_eV:       0.025     # Neutral Temperature [eV]
+  is_polytropic: false
+  e_internal:   false
+
+# ── Mesh ──────────────────────────────────────────────────────
+mesh:
+  z_length:  10          # Length in z [R0]
+  x_length:  10          # Length in x [R0]
+  param:     10          # Element size parameter (smaller = finer mesh)
+  R:         1.0         # Radius of the nozzle normalized
+  R_L:       2.0         # Radius of the magnetic loop normalized
+
+# ── Magnetic field ────────────────────────────────────────────
+magnetic_field:
+  type: Loop             # Loop | Planar
+  R_L:  [2.0]
+  I:    [1.0]
+
+# ── Initial Conditions ──────────────────────────────────────
+initial_conditions:
+  G:       3.0           # Density decay 10^-G en x = R
+  eps:     1.0e-3        # Density minimum value
+  phi_max: 0.0           # Potential at the axis
+
+# ── Numerics ───────────────────────────────────────────────────
+numerics:
+  dg_degree:   0
+  cg_degree:   2
+  refinements: 1         # Refinements of mesh when creating Simulation
+  stabilization: [0.2, 0.0, 0.0]
+
+# ── Electron solver ────────────────────────────────────────────
+electron_solver:
+  je_condition:      ICA          # OFW | ICA | wall_ambipolarity
+  tol_A:             1.0e-3
+  rel_tol_A:         0.05
+  N_psi_factor:      50           # N_psi = R_L * factor
+  N_l_factor:        40           # N_l  = z_length * factor
+
+# ── Convergence ───────────────────────────────────────────────
+convergence:
+  plasma_tol:        1.0e-7       # dq/dt for considering convergence
+  steps_per_check:   500          # steps between convergence evaluations and saves
+  max_iter:          null        # maximum number of iterations (null = no limit) 
+
+# ── Output Result Paths ────────────────────────────────────────────
+output:
+  base_dir: results

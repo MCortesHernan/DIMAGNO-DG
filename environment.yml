@@ -1,0 +1,20 @@
+# POSETS — conda environment (WSL2 / Ubuntu, tested with Miniconda)
+# Usage: conda env create -f environment.yml
+#        conda activate fenics2019
+
+name: fenics2019
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - fenics=2019.1.0
+  - numpy
+  - scipy
+  - matplotlib
+  - pyyaml
+  - meshio
+  - gmsh
+  - pip
+  - pip:
+      - ufl_legacy
