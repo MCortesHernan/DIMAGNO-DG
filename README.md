@@ -1,5 +1,7 @@
 # DIMAGNO-DG
 
+**Authors:** Manuel Cortés Hernán (manuelco@pa.uc3m.es), Mario Merino (mario.merino@uc3m.es), Diego Garcia-Lahuerta (dieggarc@ing.uc3m.es) — Universidad Carlos III de Madrid.
+
 **DIMAGNO-DG** is a Discontinuous Galerkin (DG) multi-fluid PDE solver built on [FEniCS](https://fenicsproject.org/) (legacy / `dolfin` + `ufl_legacy`) aimed at the simulation of plasma flows in the context of space plasma propulsion. 
 The model assumes well-magnetized electrons and any magnetization degree for ions, and it is thus appropriate to study the plasma flow in magnetic nozzles and similar systems. It integrates systems of conservation laws (mass, momentum, energy) for an arbitrary number of fluid species toward their **steady state**, using a Runge–Kutta time-marching scheme as a pseudo-time relaxation. 
 
@@ -24,10 +26,9 @@ The framework is quite **physics-agnostic** by design: the numerical core (DG as
 
 ## 1. Features
 
-- **Generic DG conservation-law framework**: arbitrary-order Discontinuous Galerkin in space (`dg_degree` configurable), with weak forms (mass, volume flux, surface flux, source term, axisymmetric correction) written once in `WeakForms.py` and reused by any physical model.
+- **Generic DG conservation-law framework**: arbitrary-order Discontinuous Galerkin in space (`dg_degree` configurable), with weak forms (mass, volume flux, surface flux, source term) written once in `WeakForms.py` and reused by any physical model.
 - **Time integration**: Strong-Stability-Preserving RK3 (`Propagators.RK`), with an optional row-sum mass-lumping mode for a fully explicit, matrix-free update; Forward Euler and Backward Euler (implicit, Newton-based) propagators are also available.
 - **Numerical fluxes**: Local Lax–Friedrichs (default, robust), Global Lax–Friedrichs, and a partially implemented HLLE flux.
-- **Pluggable physics**: new fluids/equations are added by subclassing `PhysicalModel` (flux, eigenvalues, source term, validity check) and `BC` (boundary state), without touching the DG core.
 - **Reference implementation — magnetic nozzle plasma expansion**:
   - Two-fluid model: ions + neutrals, each with full mass/momentum/energy conservation (`PlasmaModel2D_neutrals_E`, state vector of 9 components).
   - Collisional source terms: electron-impact ionization and charge-exchange (CEX), with optional background neutral pressure.
@@ -42,7 +43,7 @@ The framework is quite **physics-agnostic** by design: the numerical core (DG as
 
 ## 2. Repository structure
 
-DIMAGNO-DG is organized as a **generic core** (`src/`) plus one **case folder per physical problem** — e.g. `magnetic_nozzle_2d/` for the reference plasma-expansion case. A case folder is self-contained: it holds the `run.py` entry point, the `setup/` wiring, the `config/` YAML files, and (once executed) the output/results tree for that case. `src/` itself is fully case-agnostic and is shared by every case folder as a sibling package.
+DIMAGNO-DG is organized as a **generic core** (`src/`) plus one **case folder per physical problem** — e.g. `magnetic_nozzle_2d/` for the reference plasma-expansion case. A case folder is self-contained: it holds the `run.py` entry point, the `setup/` wiring, the `config/` YAML files, and (once executed) the output/results tree for that case.
 
 ```
 DIMAGNO-DG/
@@ -59,11 +60,13 @@ DIMAGNO-DG/
 │   │       ├── __init__.py              # aggregates the species models below into `src.Plasma.*` (not seen — verify!)
 │   │       ├── magn/
 │   │       │   └── BFields.py           # BField2D/3D, MagneticField_Loop/Planar, Streamline_Tracing
-│   │       ├── PlasmaModel_2D_n_E.py    # PlasmaModel2D_neutrals_E, plasma BCs
-│   │       ├── Ions.py                  # IonModel — ion thermodynamic closure
-│   │       ├── Neutrals.py              # NeutralModel — neutral thermodynamic closure
-│   │       ├── Electrons.py             # ElectronModel — electron thermodynamic + quasineutral closure
-│   │       └── Collisions.py            # CollisionModels — ionization, CEX, drag frequencies
+│   │       ├── species/
+│   │       │   ├── Ions.py              # IonModel — ion thermodynamic closure
+│   │       │   ├── Neutrals.py          # NeutralModel — neutral thermodynamic closure
+│   │       │   ├── Electrons.py         # ElectronModel — electron thermodynamic + quasineutral closure
+│   │       │   └── Collisions.py        # CollisionModels — ionization, CEX, drag frequencies
+│   │       └── models/
+│   │           └── PlasmaModel_2D_n_E.py  # PlasmaModel2D_neutrals_E, plasma BCs
 │   ├── postpro/
 │   │   ├── extract.py                   # grid extraction for postprocessing (called via --extract)
 │   │   └── Plotting/
@@ -89,37 +92,11 @@ DIMAGNO-DG/
     └── results/                         # created at run time: output_path(cfg) → results/Test_<name>_.../
 ```
 
-`run.py` resolves its own project root one level up from its own location (`PROJECT_ROOT = dirname(__file__)/..`) and inserts it at the front of `sys.path`, which is exactly what lets `import src` work from inside a case folder such as `magnetic_nozzle_2d/` — this only works as long as `run.py` lives **directly inside** a case folder that is itself a direct child of the repo root (sibling to `src/`).
-
-`src/__init__.py` re-exports the following public API (this is what `import src` actually gives you from inside any case folder):
-
-```python
-from src.physics              import PhysicalModels        # src.PhysicalModels
-from src.physics              import Plasma                # src.Plasma  (facade for the magnetic-nozzle case)
-from src.physics.Plasma.magn  import BFields                # src.BFields
-
-from src.numerics.Simulations import Simulation             # src.Simulation
-from src.numerics             import NumericalFluxes        # src.NumericalFluxes
-from src.numerics             import Propagators            # src.Propagators
-from src.numerics             import WeakForms               # src.WeakForms
-
-from src.utils                import save_load              # src.save_load
-from src.utils.save_load      import save_xdmf               # src.save_xdmf
-from src.utils                import mesh_reader             # src.mesh_reader
-from src.utils                import mesh_creator            # src.mesh_creator
-from src.utils                import Elliptic_UFL            # src.Elliptic_UFL
-from src.utils                import config_utils            # src.config_utils
-from src.utils                import MathAux                 # src.MathAux
-
-from src.postpro              import extract                 # src.extract
-from src.postpro.Plotting     import plot_class               # src.plot_class
-```
-
-**Convention**: each new physical *case* (not just a new test of the same case) gets its own top-level case folder (mirroring `magnetic_nozzle_2d/`, with its own `run.py`, `setup/`, and `config/`), and — if it needs genuinely new physics rather than a reparametrization — its own model package under `src/physics/` (mirroring `Plasma/`). The generic `src/numerics` core is reused untouched across every case.
+**Convention**: each new physical *case* gets its own case folder (mirroring `magnetic_nozzle_2d/`, with its own `run.py`, `setup/`, and `config/`), and — if it needs new physics rather than a reparametrization — its own model package under `src/physics/` (mirroring `Plasma/`). The generic `src/numerics core is reused untouched across every case.
 
 ## 3. Installation
 
-DIMAGNO-DG depends on **legacy FEniCS 2019** (`dolfin` + `ufl_legacy`), which is not pip-installable — it must be installed through `conda-forge`. The tested platform is **WSL2 / Ubuntu** with Miniconda or Anaconda.
+DIMAGNO-DG depends on **legacy FEniCS 2019** (`dolfin` + `ufl_legacy`), which must be installed through `conda-forge`. The tested platform is **WSL2 / Ubuntu** with Miniconda or Anaconda.
 
 ### Step 1 — FEniCS via conda
 
@@ -139,11 +116,6 @@ conda activate fenics2019
 # WSL only: prevent an MPI shared-memory error
 export OMPI_MCA_btl_vader_single_copy_mechanism=none
 ```
-
-> **Persistent MPI fix for WSL**: the `OMPI_MCA_btl_vader_single_copy_mechanism=none` export is only active for the current shell session. To make it permanent, add it to your `~/.bashrc` or conda environment activation script:
-> ```bash
-> echo "export OMPI_MCA_btl_vader_single_copy_mechanism=none" >> ~/.bashrc
-> ```
 
 ### Step 2 — Python dependencies
 
@@ -210,7 +182,7 @@ python run.py --test U3 --extract
 
 ## 5. Configuration system
 
-Configuration is split into two layers, deep-merged by `src/utils/config_utils.py::load_config`:
+Configuration is split into two layers:
 
 1. **`config/constants.yaml`** — defaults shared by (almost) every test of a given physical case: reference physical parameters, species properties, mesh sizing, magnetic field geometry, numerics, and convergence criteria.
 2. **`config/tests/test_<NAME>.yaml`** — only the keys that differ for that particular run (e.g. utilization efficiency, Mach number, background pressure). Anything not redeclared is inherited from `constants.yaml`.
@@ -261,14 +233,14 @@ The reference case solves the **2D axisymmetric expansion of a partially ionized
 
 ```
 u = [n, gz_i, gx_i, gy_i, E_i,   nn, gz_n, gx_n, E_n]
-     └──── ions (5) ────┘  └── neutrals (4) ──┘
+     └──── ions (5) ────────┘    └── neutrals (4) ──┘
 ```
 
 where `n`, `nn` are number densities, `g_*` are the in-plane/out-of-plane momentum densities, and `E_i`, `E_n` are total (kinetic + thermal) energy densities. All quantities are dimensionless, normalized by a reference density, the thruster radius `R0`, and a reference sound speed `c0`.
 
 - **Ion and neutral fluid equations** (`PlasmaModel2D_neutrals_E.flux` / `.rhs`): standard Euler-type conservation laws, with the ion momentum equation forced by the magnetized `J×B` term (electron and ion diamagnetic/E×B drifts) and an electrostatic potential `φ` derived from the electron pressure balance.
 - **Collisional coupling** (`CollisionModels`): dimensionless ionization and charge-exchange (CEX) frequencies, function of neutral density and electron temperature, feeding mass/momentum/energy source terms shared between the ion and neutral equations (`S_i`, `S_cex`, `Q_i`).
-- **Electron closure** (`ElectronModel`): electrons are treated as a massless, magnetized, polytropic fluid in quasi-neutral equilibrium. *(TODO: this subsection previously described the closure as computed by the now-removed `ElectronSolver` module, via ODE integration along magnetic field streamlines. Update this description once the current closure mechanism is finalized.)*
+- **Electron closure** (`ElectronModel`): electrons are treated as a massless, magnetized, polytropic fluid in quasi-neutral equilibrium.
 - **Magnetic field** (`BFields.py`): analytic field of a circular current loop (or planar wire array), computed via complete elliptic integrals (own UFL-compatible power-series implementation, `Elliptic_UFL.py`, plus SciPy for the NumPy path); `Streamline_Tracing` extracts and resamples field lines.
 - **Boundary conditions** (`BCPlasma2D_neutrals_E` subclasses): wall/symmetry (normal velocity reflected), supersonic inflow (density + velocities prescribed for both species), subsonic inflow (energy also prescribed for neutrals, since ions remain subsonic), and supersonic outflow (velocity floored at the local sound speed, remaining fields extrapolated).
 
@@ -312,7 +284,7 @@ Because the DG core only talks to the physics through `PhysicalModel`/`BC`, addi
 
 - **Checkpoints**: `src/utils/save_load.py::save_xdmf` (re-exported as `src.save_xdmf`) writes the full DG solution vector to `{output_path}/full_sol/u_t_<t>.xdmf` using `dolfin`'s checkpoint format; `Simulation.read_u_from_file` reloads it. `run.py --load T` restarts from such a checkpoint.
 - **Quick-look diagnostics** (`save_load.py`): `plot_2D` / `plot_ratio_2D` (matplotlib field maps), `mass_in_domain`, `mass_flux` (boundary integrals), `save_xdmf_component` (per-component XDMF export). These are explicitly flagged in the source as debugging helpers — "real" postprocessing is intended for ParaView on the saved XDMF files.
-- **Grid extraction** (`--extract`): `run.py` imports `run_extraction` from `src.postpro.extract_mn_2d`, while `src/__init__.py` instead exposes `src.postpro.extract` as `src.extract` — these don't match (see [§10](#10-known-issues--todo)); whichever module is current should provide `run_extraction`, sampling all fields onto structured numpy grids for the converged (or loaded) state.
+- **Grid extraction** (`--extract`): samples all fields onto structured numpy grids for the converged (or loaded) state.
 - **Metrics** (`--metrics`): forces/powers/efficiencies postprocessing exists in design but is currently commented out in `run.py` (see below).
 
 ## 10. Known issues / TODO
@@ -321,3 +293,5 @@ A few inconsistencies were spotted while documenting the code; flagging them her
 
 - **`--metrics`** postprocessing block is commented out in `run.py` (`postpro/metrics.py` referenced but not wired up).
 - **`HLLE` numerical flux** is explicitly marked `# TODO complete, not working at the moment` in `NumericalFluxes.py`.
+
+  
