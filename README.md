@@ -3,9 +3,13 @@
 **Authors:** Manuel Cortés Hernán (manuelco@pa.uc3m.es), Mario Merino (mario.merino@uc3m.es), Diego Garcia-Lahuerta (dieggarc@ing.uc3m.es) — Universidad Carlos III de Madrid.
 
 **DIMAGNO-DG** is a Discontinuous Galerkin (DG) multi-fluid PDE solver built on [FEniCS](https://fenicsproject.org/) (legacy / `dolfin` + `ufl_legacy`) aimed at the simulation of plasma flows in the context of space plasma propulsion. 
-The model assumes well-magnetized electrons and any magnetization degree for ions, and it is thus appropriate to study the plasma flow in magnetic nozzles and similar systems. It integrates systems of conservation laws (mass, momentum, energy) for an arbitrary number of fluid species toward their **steady state**, using a Runge–Kutta time-marching scheme as a pseudo-time relaxation. 
+The model assumes well-magnetized electrons and any magnetization degree for ions, and it is thus appropriate to study the plasma flow in magnetic nozzles and similar systems. It integrates systems of conservation laws (mass, momentum, energy) for an arbitrary number of fluid species toward their **steady state**, using a Runge–Kutta time-marching scheme as a pseudo-time relaxation. For a full description of the underlying physical model and the implementation details, see:
 
-The framework is quite **physics-agnostic** by design: the numerical core (DG assembly, numerical fluxes, time propagators) operates on any model that implements a small abstract interface (`PhysicalModel`, `BC`). The repository currently ships one fully worked instance of this interface: a **2D axisymmetric magnetic-nozzle plasma expansion** solver, coupling ion and neutral conservation equations with a magnetized, collisional electron closure.
+Merino, Mario, Diego García-Lahuerta, and Eduardo Ahedo. “Plasma Acceleration in a Magnetic Arch.” Plasma Sources Science and Technology 32, no. 6 (2023): 065005. https://doi.org/10.1088/1361-6595/acd476.
+
+Cortés-Hernán, Manuel, Mario Merino, Diego García-Lahuerta, and Eduardo Ahedo. “Analysis of Collisional and Facility Effects in a Magnetic Nozzle Plasma Expansion.” arXiv:2607.07861. Preprint, arXiv, July 8, 2026. https://doi.org/10.48550/arXiv.2607.07861.
+
+Independently of its primary application in plasma physics, the framework is quite **physics-agnostic** by design: the numerical core (DG assembly, numerical fluxes, time propagators) operates on any model that implements a small abstract interface (`PhysicalModel`, `BC`). The repository currently ships one fully worked instance of this interface: a **2D axisymmetric magnetic-nozzle plasma expansion** solver, coupling ion and neutral conservation equations with a magnetized, collisional electron closure.
 
 ---
 
@@ -19,19 +23,18 @@ The framework is quite **physics-agnostic** by design: the numerical core (DG as
 - [6. The magnetic nozzle physics model](#6-the-magnetic-nozzle-physics-model)
 - [7. Numerical method](#7-numerical-method)
 - [8. Extending DIMAGNO-DG to a new fluid / problem](#8-extending-dimagno-dg-to-a-new-fluid--problem)
-- [9. Output and postprocessing](#9-output-and-postprocessing)
-- [10. Known issues / TODO](#10-known-issues--todo)
+- [9. Output and postprocessing](#9-output-and-postprocessing) 
 
 ---
 
 ## 1. Features
 
-- **Generic DG conservation-law framework**: arbitrary-order Discontinuous Galerkin in space (`dg_degree` configurable), with weak forms (mass, volume flux, surface flux, source term) written once in `WeakForms.py` and reused by any physical model.
-- **Time integration**: Strong-Stability-Preserving RK3 (`Propagators.RK`), with an optional row-sum mass-lumping mode for a fully explicit, matrix-free update; Forward Euler and Backward Euler (implicit, Newton-based) propagators are also available.
-- **Numerical fluxes**: Local Lax–Friedrichs (default, robust), Global Lax–Friedrichs, and a partially implemented HLLE flux.
+- **Generic DG conservation-law framework**: arbitrary-order Discontinuous Galerkin in space (`dg_degree` configurable), with weak forms (mass, volume flux, surface flux, source term) written once in `WeakForms.py` and reused by any physical model (e.g. ions, neutrals).
+- **Time integration**: Strong-Stability-Preserving RK3 time marching scheme (`Propagators.py`), with an optional row-sum mass-lumping mode for a fully explicit, matrix-free update; Forward Euler and Backward Euler (implicit, Newton-based) propagators are also available.
+- **Numerical fluxes**: Local Lax–Friedrichs (default, robust), Global Lax–Friedrichs, and a partially-implemented HLLE flux.
 - **Reference implementation — magnetic nozzle plasma expansion**:
   - Two-fluid model: ions + neutrals, each with full mass/momentum/energy conservation (`PlasmaModel2D_neutrals_E`, state vector of 9 components).
-  - Collisional source terms: electron-impact ionization and charge-exchange (CEX), with optional background neutral pressure.
+  - Collisional source terms: electron-impact ionization and charge-exchange (CEX), with optional background neutral pressure (with data for Xenon; easily extensible to other gases).
   - Analytic magnetic fields (current loop / infinite wire arrays) computed via elliptic integrals, plus a generic streamline tracer.
   - Wall, supersonic/subsonic inflow, and supersonic outflow boundary conditions, strongly or weakly imposed.
 - **h/p adaptivity hooks**: mesh refinement (`refine_mesh`) and polynomial order increase (`refine_p`) as steps in a simulation "strategy" list.
@@ -43,7 +46,7 @@ The framework is quite **physics-agnostic** by design: the numerical core (DG as
 
 ## 2. Repository structure
 
-DIMAGNO-DG is organized as a **generic core** (`src/`) plus one **case folder per physical problem** — e.g. `magnetic_nozzle_2d/` for the reference plasma-expansion case. A case folder is self-contained: it holds the `run.py` entry point, the `setup/` wiring, the `config/` YAML files, and (once executed) the output/results tree for that case.
+DIMAGNO-DG is organized as a **generic core** directory (`src/`). It also includes an example application case in directory `magnetic_nozzle_2d/` for the reference plasma-expansion case. The case folder is self-contained: it holds the `run.py` entry point, the `setup/` wiring, the `config/` YAML files, and (once executed) the output/results tree for that case.
 
 ```
 DIMAGNO-DG/
@@ -286,12 +289,6 @@ Because the DG core only talks to the physics through `PhysicalModel`/`BC`, addi
 - **Quick-look diagnostics** (`save_load.py`): `plot_2D` / `plot_ratio_2D` (matplotlib field maps), `mass_in_domain`, `mass_flux` (boundary integrals), `save_xdmf_component` (per-component XDMF export). These are explicitly flagged in the source as debugging helpers — "real" postprocessing is intended for ParaView on the saved XDMF files.
 - **Grid extraction** (`--extract`): samples all fields onto structured numpy grids for the converged (or loaded) state.
 - **Metrics** (`--metrics`): forces/powers/efficiencies postprocessing exists in design but is currently commented out in `run.py` (see below).
-
-## 10. Known issues / TODO
-
-A few inconsistencies were spotted while documenting the code; flagging them here rather than silently working around them:
-
-- **`--metrics`** postprocessing block is commented out in `run.py` (`postpro/metrics.py` referenced but not wired up).
-- **`HLLE` numerical flux** is explicitly marked `# TODO complete, not working at the moment` in `NumericalFluxes.py`.
+ 
 
   
