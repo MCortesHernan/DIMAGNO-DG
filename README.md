@@ -60,7 +60,7 @@ DIMAGNO-DG/
 │   ├── physics/
 │   │   ├── PhysicalModels.py            # abstract PhysicalModel / BC base classes
 │   │   └── Plasma/                      # physics package for the magnetic-nozzle case (a "model package")
-│   │       ├── __init__.py              # aggregates the species models below into `src.Plasma.*` (not seen — verify!)
+│   │       ├── __init__.py              # aggregates the species models below into `src.Plasma.` 
 │   │       ├── magn/
 │   │       │   └── BFields.py           # BField2D/3D, MagneticField_Loop/Planar, Streamline_Tracing
 │   │       ├── species/
