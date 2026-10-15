@@ -92,12 +92,13 @@ class MagneticField_Planar(BField2D):
 
         return Br
 
-    def rescale(self, z=0., x=0., lib=np):
+    def rescale(self, z=0., x=0., lib=np, *, B_target=1.):
         '''
-        Rescale the currents I so that the norm of the magnetic field at a given point is 1.
+        Rescale the currents I so that the norm of the magnetic field at (z, x) is B_target.
+        B_target is the normalized field B0/B_ref, with B_ref = m_i c0/(e R0) (ion Hall parameter = 1).
         '''
         Bnorm = self.Bnorm(z, x)
-        self.I = [I/Bnorm for I in self.I]
+        self.I = [I*B_target/Bnorm for I in self.I]
 
 
 
@@ -177,12 +178,13 @@ class MagneticField_Loop(BField2D):
         
         return Br
 
-    def rescale(self, z=0., r=0., lib=np):
+    def rescale(self, z=0., r=0., lib=np, *, B_target=1.):
         '''
-        Rescale the currents I so that the norm of the magnetic field at a given point is 1.
+        Rescale the currents I so that the norm of the magnetic field at (z, r) is B_target.
+        B_target is the normalized field B0/B_ref, with B_ref = m_i c0/(e R0) (ion Hall parameter = 1).
         '''
         Bnorm = self.Bnorm(z, r)
-        self.I = [I/Bnorm for I in self.I]
+        self.I = [I*B_target/Bnorm for I in self.I]
 
 
 class Streamline_Tracing:
@@ -375,9 +377,10 @@ class MagneticField_Loop_3D(BField3D):
             
         return By
 
-    def rescale(self, z=0., x=0., y=0., lib=np):
+    def rescale(self, z=0., x=0., y=0., lib=np, *, B_target=1.):
         '''
-        Rescale the currents I so that the norm of the magnetic field at a given point is 1.
+        Rescale the currents I so that the norm of the magnetic field at (z, x, y) is B_target.
+        B_target is the normalized field B0/B_ref, with B_ref = m_i c0/(e R0) (ion Hall parameter = 1).
         '''
         Bnorm = self.Bnorm(z, x, y)
-        self.I = [I/Bnorm for I in self.I]
+        self.I = [I*B_target/Bnorm for I in self.I]

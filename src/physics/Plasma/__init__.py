@@ -15,3 +15,4 @@ from .models.PlasmaModel_2D_n_E import PlasmaModel2D_neutrals_E, BC_Wall2D_neutr
 from .models.PlasmaModel_2D_n_E_pb import PlasmaModel2D_neutrals_E_back_p, BC_Wall2D_neutrals_E_back_p, BC_SupersonicInflow2D_neutrals_E_back_p, BC_SubsonicInflow2D_neutrals_E_back_p, BC_SupersonicOutflow2D_neutrals_E_back_p
 from .magn.B_induced import self_B
 from .models.ElectronSolver import ElectronSolver
+from .models.ElectronSolver_3D import ElectronSolver_3D

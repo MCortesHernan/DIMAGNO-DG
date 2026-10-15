@@ -117,15 +117,15 @@ class PlasmaModel3D_base(src.PhysicalModels.PhysicalModel):
 
         electron_mag_force = (
             
-             - 1/(self.ElectronModel.gamma - 1) * n(u)**self.ElectronModel.gamma * gradA_perp
+             - 1/(self.ElectronModel.gamma - 1) * n(u)**self.ElectronModel.gamma * gradA_perp # + n(u) * gradHe_perp
             )
         
         ion_mag_force = n(u) * ufl.cross(v_i, B)
 
         return [0,
-                electron_mag_force[0] ,
-                electron_mag_force[1] ,
-                electron_mag_force[2]  
+                electron_mag_force[0] + ion_mag_force[0],
+                electron_mag_force[1] + ion_mag_force[1],
+                electron_mag_force[2] + ion_mag_force[2]
                 ]
 
     def is_valid(self, u):

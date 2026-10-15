@@ -52,9 +52,13 @@ def build_parameters(cfg):
     back_pres = cfg["initial_conditions"].get("background_pressure_pa", 0.0)
     back_dens = (back_pres / (k_B * T_n_K)) / n0_m3 if back_pres > 0 else 0.0
  
-    B0      = phys["B0"]
-    B_norm  = phys["B_norm"]
-    B0_norm = B0 / B_norm
+    # Magnetic field. In normalized units the ion magnetic force is n u_i x B with coefficient 1,
+    # so the reference field is the one with ion Hall parameter Omega_i R0 / c0 = 1.
+    B0      = phys["B0"]                          # physical field at the throat centre [G]
+    B_ref   = mi_dim * c0 / (e * R0) * 1e4        # [G]
+    B0_norm = B0 / B_ref                          # normalized |B| at the throat = ion Hall parameter
+    if "B_norm" in phys and abs(phys["B_norm"] / B_ref - 1) > 1e-2:
+        print(f"WARNING: config B_norm = {phys['B_norm']:.0f} G is ignored; B_ref = {B_ref:.0f} G is computed from A, Te0 and R0")
 
     n0_ = 1.0
     gamma_n = cfg["neutrals"]["gamma"]
@@ -67,6 +71,7 @@ def build_parameters(cfg):
     print(f"c0       = {c0:.1f} m/s")
     print(f"n0_m3    = {n0_m3:.3e} m⁻³")
     print(f"m_dot_i  = {m_dot_i:.3e} kg/s")
+    print(f"B0       = {B0:.1f} G,  B_ref = {B_ref:.1f} G,  B0_norm = {B0_norm:.4f}")
     print(f"r_T_n    = {r_T_n:.4f}")
     print(f"r_T_i    = {r_T_i:.4f}")
     print(f'back_pres = {back_pres:.3e} Pa')
@@ -81,7 +86,7 @@ def build_parameters(cfg):
         r_T_n=r_T_n, T_n_K=T_n_K,
         r_T_i=r_T_i, T_i_K=T_i_K,
         back_pres=back_pres, back_dens=back_dens,
-        B0=B0, B0_norm=B0_norm,
+        B0=B0, B_ref=B_ref, B0_norm=B0_norm,
         n0_ = n0_, nn0_ = nn0_, Mi0=Mi0,
     )
 
@@ -125,7 +130,8 @@ def build_magnetic_field(cfg, B0_norm):
     else:
         raise NotImplementedError(f"Field type not implemented: {mf['type']}")
  
-    BField.rescale(B0_norm, 0.0, 0.0)
+    # |B| = B0_norm at the throat centre (z, r) = (0, 0) (B0_norm = B0/B_ref, see build_parameters)
+    BField.rescale(0.0, 0.0, B_target=B0_norm)
     return BField
  
 def build_models(cfg, pp):

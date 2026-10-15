@@ -1,0 +1,498 @@
+####################################################################
+
+# PLOTTING
+
+#####################################################################
+
+from matplotlib.ticker import MaxNLocator, StrMethodFormatter, LogFormatterMathtext
+
+import nmmn.plots
+import matplotlib.colors as colors
+parula = nmmn.plots.parulacmap()
+
+
+class plot_class:
+    '''This class defines methods to make different kinds of plots.'''
+
+    def __init__(self, dim, title,
+                 z_title=r'$z$ [cm]', x_title=r'$r$ [cm]',
+                 fig=None, ax=None):
+
+        plt.rcParams['font.family'] = 'sans-serif'
+        self.dim = dim
+        self.title = title
+        self.z_title = z_title
+        self.x_title = x_title
+
+        # Use existing fig/ax or create new
+        if fig is None or ax is None:
+            self.fig, self.ax = plt.subplots()
+        else:
+            self.fig = fig
+            self.ax = ax
+        if dim == 2:
+            self.ax.set_box_aspect(None)
+
+        self.ax.tick_params(labelsize=30)
+
+        self.ax.xaxis.set_major_formatter(StrMethodFormatter('{x:g}'))
+        self.ax.yaxis.set_major_formatter(StrMethodFormatter('{x:g}'))
+
+    def plot_map(self, X, Z, data, clip=None, log=False, add_colorbar=False, cax=None, write_label_x=False, write_label_y=False):
+        '''2D colormap. Optionally attach colorbar.'''
+
+        data = np.array(data, copy=True)
+
+        # Sanitize
+        data[~np.isfinite(data)] = np.nan
+
+        if log:
+            data[data <= 0] = np.nan
+            if clip is None:
+                normalize = colors.LogNorm(vmin=np.nanmin(data), vmax=np.nanmax(data))
+            else:
+                normalize = colors.LogNorm(clip[0], clip[1])
+        else:
+            normalize = None if clip is None else colors.Normalize(clip[0], clip[1])
+
+        pcol = self.ax.pcolormesh(X, Z, data, cmap=parula,
+                                  norm=normalize, shading='auto')
+
+        if add_colorbar:
+            cbar = self.fig.colorbar(pcol, cax=cax)
+            cbar.ax.tick_params(labelsize=30)
+
+            if self.title is not None:
+                self.ax.set_title(self.title, fontsize=30, pad=10)
+
+        self.ax.tick_params('x', direction= 'in', length = 5, top = True)
+        self.ax.tick_params('y', direction= 'in', length = 5, right = True)
+        self.ax.set_xlim(np.nanmin(X), np.nanmax(X))
+        self.ax.set_ylim(np.nanmin(Z), np.nanmax(Z))
+
+        if write_label_x:
+            self.ax.set_xlabel(self.z_title, fontsize=30)
+        if write_label_y:
+            self.ax.set_ylabel(self.x_title, fontsize=30)
+
+        return pcol
+
+    def plot_line(self, x_s, magnitude, label, color=['black'], linestyle=['solid'], linewidth=[1.], logy=False, write_label_x=False, write_label_y=False, add_legend=True, lim_x=None, lim_y=None):
+        if not isinstance(magnitude, list):
+            magnitude = [magnitude]
+            label = [label]
+
+        for i in range(len(magnitude)):
+            self.ax.plot(x_s, magnitude[i], label=label[i], color=color[i], linestyle=linestyle[i], linewidth=linewidth[i])
+
+        if logy:
+            # Avoid zeros or negatives
+            all_values = np.hstack(magnitude)
+            min_val = max(np.min(all_values[all_values > 0]), 1e-12)  # avoid log(0)
+            max_val = np.max(all_values)
+
+            self.ax.set_yscale('log')
+            self.ax.set_ylim(min_val, max_val)
+
+            # Format y-axis labels as powers of 10
+            self.ax.yaxis.set_major_formatter(LogFormatterMathtext(base=10))
+
+        self.ax.tick_params('x', direction= 'in', length = 5, top = True)
+        self.ax.tick_params('y', direction= 'in', length = 5, right = True)
+
+        if write_label_x:
+            self.ax.set_xlabel(self.z_title, fontsize=30)
+        if write_label_y:
+            self.ax.set_ylabel(self.x_title, fontsize=30)
+
+        if add_legend:
+            self.ax.legend(fontsize=30)
+
+        #set lims
+        if lim_y is not None:
+            self.ax.set_ylim(lim_y)
+        else:
+            self.ax.set_ylim([np.min(magnitude), np.max(magnitude) + 0.06*np.max(magnitude)])
+        if lim_x is not None:
+            self.ax.set_xlim(lim_x)
+        else:
+            self.ax.set_xlim([np.min(x_s), np.max(x_s)])
+
+z_title = r'$z/R_0$'
+x_title = r'$x/R_0$'
+y_title = r'$y/R_0$'
+
+plot_mesh_dir = '/mnt/c/Users/manue/Desktop/MA_3D_FIGURES/Test_' + str(test_num) + '_' + str(mesh_z_len) + 'x' + str(mesh_x_len) + '/'
+os.makedirs(plot_mesh_dir, exist_ok=True)
+
+
+#####################################################################
+
+# 1. COMPUTATIONS (everything the figures need)
+
+#####################################################################
+
+#%% 1.1 Sample the planes (all fields in one pass per plane)
+
+S_y0   = sample(Z_2d_y0, X_2d_y0, y0)
+S_x0   = sample(Z_2d_x0, x0, Y_2d_x0)
+S_xsym = sample(Z_2d_x0, xsym, Y_2d_x0)
+S_z    = {zs: sample(zs, X_2d_z0, Y_2d_z0) for zs in z_slices}
+
+# plane -> (axes of the plane, grid spacings)
+plane_axes = [(S_y0, ('z', 'x'), (dz, dx)),
+              (S_x0, ('z', 'y'), (dz, dy)),
+              (S_xsym, ('z', 'y'), (dz, dy))]
+
+#%% 1.2 Electric field [V/m]
+
+# In-plane components from the gradient of phi
+for S, axes, h in plane_axes:
+    S['Ez'], S['Ex'], S['Ey'] = (-g for g in grad_2d(S['phi']*Te0, axes, (h[0]*R0, h[1]*R0)))
+
+# Out-of-plane component with centered finite differences
+h_perp = 1e-4
+S_y0['Ey'] = -(sample(Z_2d_y0, X_2d_y0, y0 + h_perp)['phi'] - sample(Z_2d_y0, X_2d_y0, y0 - h_perp)['phi']) * Te0/(2*h_perp*R0)
+S_x0['Ex'] = -(sample(Z_2d_x0, x0 + h_perp, Y_2d_x0)['phi'] - sample(Z_2d_x0, x0 - h_perp, Y_2d_x0)['phi']) * Te0/(2*h_perp*R0)
+
+#%% 1.3 Electron force (grad_perp A)
+
+for S, axes, h in plane_axes:
+    gperp_A = perp_to_B(*grad_2d(S['A_Te'], axes, h), S)
+    S['Fze'], S['Fxe'], S['Fye'] = electron_force(S, gperp_A)
+
+#%% 1.4 Electron velocity and current from ElectronSolver_3D (requires the ELECTRON UPDATE cell)
+# u_e = u_par_e b + u_e_perp, with the full 3D gradients. Keys: upare, G, n_e, ue, ue_perp and
+# (z, x, y) components uez_par, uez_perp, uez, ...
+
+S_y0.update(ElectronSolver.sample(Z_2d_y0, X_2d_y0, y0))
+S_x0.update(ElectronSolver.sample(Z_2d_x0, x0, Y_2d_x0))
+S_xsym.update(ElectronSolver.sample(Z_2d_x0, xsym, Y_2d_x0))
+for zs, S in S_z.items():
+    S.update(ElectronSolver.sample(zs, X_2d_z0, Y_2d_z0))
+
+# Velocities are meaningless where there is no plasma (u = flux/n with n at the floor): they are masked
+n_plot_min = 1e-3   # normalized density (n0 = 1 at the outlet centre)
+
+def vac(S, data):
+    '''data where n > n_plot_min, NaN elsewhere (blank in the plots).'''
+    return np.where(S['n'] > n_plot_min, data, np.nan)
+
+def je_streams(S, comps, frac=1e-3):
+    '''In-plane electron current j_e = -n u_e (comps, e.g. ('uez', 'uex')), masked where |j_e| < frac max.'''
+    U, V = -S['n_e']*S[comps[0]], -S['n_e']*S[comps[1]]
+    m = np.hypot(U, V) < frac*np.nanmax(np.hypot(U, V))
+    return np.ma.masked_where(m, U), np.ma.masked_where(m, V)
+
+def log_clip(data, pct=1):
+    '''Log color limits: [pct percentile, max] of the positive finite values.'''
+    d = np.abs(np.asarray(data)); d = d[np.isfinite(d) & (d > 0)]
+    return [np.percentile(d, pct), d.max()]
+
+def lin_clip(data, lo=1, hi=99):
+    '''Linear color limits: [lo, hi] percentiles of the finite values.'''
+    d = np.asarray(data); d = d[np.isfinite(d)]
+    return [np.percentile(d, lo), np.percentile(d, hi)] if d.size else [0., 1.]
+
+#%% 1.5 3D magnetic lines and separatrix on the planes
+# Lines are traced with the analytic 3D field (Bfield3D). The separatrix splits inner lines (they cross the
+# symmetry plane x = 0, i.e. connect with the symmetric thruster) from outer lines (they go around the coil
+# and back to the thruster plane): the line through each point is followed both ways (ElectronSolver.topology_map).
+
+topo_h = 0.1   # resolution of the inner/outer maps used to draw the separatrix
+
+# y = y_c: mirror plane of the coils, the 3D lines stay in it -> exact lines and separatrix line
+x_sep_y0 = ElectronSolver.separatrix_on_line(y0, (C_nozzle[1] - R_w, C_nozzle[1] + R_w))
+print('3D separatrix on the throat (y = y_c): x =', x_sep_y0)
+lines_y0 = [ElectronSolver.field_line((0., xx, y0)) for xx in np.linspace(2, 4, 10)]
+sep_y0 = ElectronSolver.field_line((0., x_sep_y0, y0))
+
+# x = x_c: the 3D lines leave the plane -> projection of the lines through the throat points on the plane,
+# and the exact intersection of the separatrix surface with the plane
+lines_x0 = [ElectronSolver.field_line((0., x0, yy)) for yy in np.linspace(2, 4, 10)]
+Zt_x0, Yt_x0 = np.meshgrid(np.arange(0, mesh_z_len + 1e-9, topo_h), np.arange(0, mesh_y_len + 1e-9, topo_h), indexing='ij')
+topo_x0 = ElectronSolver.topology_map(np.column_stack([Zt_x0.ravel(), np.full(Zt_x0.size, x0), Yt_x0.ravel()])).reshape(Zt_x0.shape)
+
+# z = const slices: intersection of the separatrix surface with each slice
+Xt_z, Yt_z = np.meshgrid(np.arange(0, mesh_x_len + 1e-9, topo_h), np.arange(0, mesh_y_len + 1e-9, topo_h), indexing='ij')
+topo_z = {zs: ElectronSolver.topology_map(np.column_stack([np.full(Xt_z.size, zs), Xt_z.ravel(), Yt_z.ravel()])).reshape(Xt_z.shape)
+          for zs in z_slices}
+print('Separatrix maps computed')
+
+#%% 1.6 Asymmetry about the line y = y_line on the x = x_c plane
+
+y_line = 3.0
+
+mask_y = y_lin > y_line        # half of the domain, y > y_line
+
+Z_2d_half = Z_2d_x0[:, mask_y]
+Y_2d_half = Y_2d_x0[:, mask_y]
+
+def reflect_about_y(field, y_lin, y_line):
+    '''Reflects field(z, y) about the line y = y_line (interpolation).'''
+    y_reflected_coords = 2*y_line - y_lin
+    return np.array([np.interp(y_reflected_coords, y_lin, row, left=np.nan, right=np.nan) for row in field])
+
+def asymmetry_about_y(field, y_lin, y_line, parity=+1):
+    '''
+    parity=+1: field(y) = field(2*y_line - y) expected (scalars, z component)
+    parity=-1: field(y) = -field(2*y_line - y) expected (y component)
+    Returns the asymmetry residual (0 for a perfectly symmetric field).
+    '''
+    reflected = reflect_about_y(field, y_lin, y_line)
+    return 0.5 * (field - parity * reflected)
+
+parities = {'n': +1, 'phi': +1, 'Te': +1, 'ui': +1, 'uzi': +1, 'uyi': -1}
+asym = {k: asymmetry_about_y(S_x0[k], y_lin, y_line, parity=par)[:, mask_y] for k, par in parities.items()}
+
+
+#####################################################################
+
+# 2. PLOTTING HELPERS
+
+#####################################################################
+
+#%%
+
+def add_contour(plot, key):
+    '''3D magnetic lines (black) and separatrix (red) on the plane key: 'y0', 'x0' or a z slice value.'''
+    xlim, ylim = plot.ax.get_xlim(), plot.ax.get_ylim()
+    if key == 'y0':
+        for L in lines_y0:
+            plot.ax.plot(L[:, 0], L[:, 1], color='black', linestyle='solid', linewidth=1.5)
+        plot.ax.plot(sep_y0[:, 0], sep_y0[:, 1], color='red', linestyle='solid', linewidth=3.)
+    elif key == 'x0':
+        for L in lines_x0:   # projection of the 3D lines on the plane
+            plot.ax.plot(L[:, 0], L[:, 2], color='black', linestyle='solid', linewidth=1.5)
+        plot.ax.contour(Zt_x0, Yt_x0, topo_x0, [0.], colors='red', linestyles='solid', linewidths=3.)
+    else:                    # z slice: horizontal axis y, vertical axis x
+        plot.ax.contour(Yt_z, Xt_z, topo_z[key], [0.], colors='red', linestyles='solid', linewidths=3.)
+    plot.ax.set_xlim(xlim)
+    plot.ax.set_ylim(ylim)
+
+def add_streams(ax, Hg, Vg, U, V):
+    '''Magenta streamlines of (U, V) drawn on the grid (Hg, Vg).'''
+    if np.ptp(Hg[:, 0]) > 0:  # streamplot wants the horizontal coordinate along axis 1
+        Hg, Vg, U, V = Hg.T, Vg.T, U.T, V.T
+    ax.streamplot(Hg[0, :], Vg[:, 0], U, V, color='magenta', density=0.7, arrowsize=1., linewidth = 1.)
+
+def tick_number(plot, nx = 4, ny = 4):
+    plot.ax.xaxis.set_major_locator(MaxNLocator(nbins=nx))  # max nx ticks on X
+    plot.ax.yaxis.set_major_locator(MaxNLocator(nbins=ny))  # max ny ticks on Y
+
+def plot_panels(name, shape, figsize, panels, Hg, Vg, h_title=z_title, v_title=x_title,
+                contour=None, stream=None, aspect=None, sharex=False, sharey=True, wspace=0.04):
+    '''
+    One figure with a grid of 2D maps, saved as plot_mesh_dir/<name>.png
+    panels : list of dicts with 'data' and 'title', and optionally 'log', 'clip' or any of the
+             keyword arguments below (Hg, Vg, v_title, contour, stream, ...) to override them for that panel.
+    Hg, Vg : 2D grids of the horizontal and vertical axis.
+    contour: plane of the 3D lines and separatrix ('y0', 'x0', a z slice value) or None.
+    stream : (U, V) components drawn as streamlines, or None.
+    Axis labels are written on the bottom row / first column only when the axis is shared.
+    '''
+    fig, axs = plt.subplots(*shape, figsize=figsize, sharex=sharex, sharey=sharey, squeeze=False)
+    fig.subplots_adjust(left=0.03, right=0.98, bottom=0.04, top=0.95, wspace=wspace, hspace=0.1)
+
+    defaults = dict(log=False, clip=None, Hg=Hg, Vg=Vg, h_title=h_title, v_title=v_title,
+                    contour=contour, stream=stream, aspect=aspect)
+
+    for k, (ax, panel) in enumerate(zip(axs.flat, panels)):
+        o = {**defaults, **panel}
+        row, col = divmod(k, shape[1])
+
+        p = plot_class(2, o['title'], fig=fig, ax=ax, z_title=o['h_title'], x_title=o['v_title'])
+        p.plot_map(o['Hg'], o['Vg'], o['data'], clip=o['clip'], log=o['log'], add_colorbar=True,
+                   write_label_x=(not sharex or row == shape[0] - 1),
+                   write_label_y=(not sharey or col == 0))
+        if o['contour'] is not None:
+            add_contour(p, o['contour'])
+        if o['stream'] is not None:
+            add_streams(p.ax, o['Hg'], o['Vg'], *o['stream'])
+        if o['aspect'] is not None:
+            p.ax.set_aspect(o['aspect'])
+
+    fig.savefig(os.path.join(plot_mesh_dir, name + '.png'), dpi=500, bbox_inches='tight')
+    return fig
+
+def prop_panels(S, stream):
+    '''n, phi, Te and u_i panels (streamlines on the u_i panel).'''
+    return [dict(data=S['n']*n0_m3,     title=r'$n$ $[m^{-3}]$', log=True),
+            dict(data=S['phi']*Te0,     title=r'$\phi$ $[V]$',   clip=[np.nanmin(S['phi']*Te0), 0]),
+            dict(data=S['Te']*Te0,      title=r'$T_e$ $[eV]$',   clip=[0, 10]),
+            dict(data=S['ui']*u_scale,  title=r'${\tilde{u}}_{i}$ $[km/s]$', stream=stream)]
+
+def xyz_panels(S, keys, titles, clips, scale=1.):
+    '''|z|, |x|, |y| components of a vector, log scale.'''
+    return [dict(data=np.abs(S[k]*scale), title=t, log=True, clip=c) for k, t, c in zip(keys, titles, clips)]
+
+
+#####################################################################
+
+# 3. FIGURES
+
+#####################################################################
+
+#%% 3.1 Magnetic field
+
+fig_B = plot_panels('B', (1, 2), (25, 8),
+    [dict(data=S_y0['B'], title=r'$B/B_0$ (y = $y_c$)', log=True, clip=[1e-3, np.nanmax(S_y0['B'])]),
+     dict(data=S_x0['B'], title=r'$B/B_0$ (x = $x_c$)', log=True, clip=[1e-3, np.nanmax(S_x0['B'])],
+          Hg=Z_2d_x0, Vg=Y_2d_x0, v_title=y_title, contour='x0')],
+    Z_2d_y0, X_2d_y0, contour='y0', sharey=False, wspace=0.06)
+
+#%% 3.2 Plasma properties: n, phi, Te, u_i
+
+fig_prop_y0 = plot_panels('prop_y0', (2, 2), (22, 15), prop_panels(S_y0, stream=(S_y0['uzi'], S_y0['uxi'])),
+                          Z_2d_y0, X_2d_y0, contour='y0', sharex=True)
+
+#%%
+
+fig_prop_x0 = plot_panels('prop_x0', (2, 2), (22, 15), prop_panels(S_x0, stream=(S_x0['uzi'], S_x0['uyi'])),
+                          Z_2d_x0, Y_2d_x0, v_title=y_title, contour='x0', sharex=True)
+
+#%%
+
+fig_prop_xsym = plot_panels('prop_xsym', (2, 2), (22, 15), prop_panels(S_xsym, stream=(S_xsym['uzi'], S_xsym['uyi'])),
+                            Z_2d_x0, Y_2d_x0, v_title=y_title, sharex=True)
+
+#%% 3.3 Electron thermal function A
+
+fig_A_Te = plot_panels('A_Te', (1, 2), (25, 8),
+    [dict(data=S_y0['A_Te'], title=r'$A$ (y = $y_c$)'),
+     dict(data=S_x0['A_Te'], title=r'$A$ (x = $x_c$)', Hg=Z_2d_x0, Vg=Y_2d_x0, v_title=y_title, contour='x0')],
+    Z_2d_y0, X_2d_y0, contour='y0', sharex=True, sharey=False, wspace=0.06)
+
+#%% 3.4 Electric field
+
+E_titles = [r'$E_z$ [V/m]', r'$E_x$ [V/m]', r'$E_y$ [V/m]']
+
+fig_E_y0 = plot_panels('E_y0', (1, 3), (33, 8),
+                       xyz_panels(S_y0, ['Ez', 'Ex', 'Ey'], E_titles, [[1, 1e5], [1, 1e5], [1, 1e7]]),
+                       Z_2d_y0, X_2d_y0, contour='y0')
+
+#%%
+
+fig_E_x0 = plot_panels('E_x0', (1, 3), (33, 8),
+                       xyz_panels(S_x0, ['Ez', 'Ex', 'Ey'], E_titles, [[1, 1e5], [1, 1e7], [1, 1e5]]),
+                       Z_2d_x0, Y_2d_x0, v_title=y_title, contour='x0')
+
+#%% 3.5 Parallel electron flux n u_par_e = G |B| (defined everywhere, no division by n), electron current streamlines
+
+f_y0, f_x0 = S_y0['G']*S_y0['B'], S_x0['G']*S_x0['B']
+fig_ne_upar = plot_panels('ne_upar_planes', (1, 2), (25, 8),
+    [dict(data=f_y0, title=r'$n u_{\parallel e}$ (y = $y_c$)', clip=lin_clip(f_y0),
+          stream=je_streams(S_y0, ('uez', 'uex'))),
+     dict(data=f_x0, title=r'$n u_{\parallel e}$ (x = $x_c$)', clip=lin_clip(f_x0),
+          Hg=Z_2d_x0, Vg=Y_2d_x0, v_title=y_title, contour='x0', stream=je_streams(S_x0, ('uez', 'uey')))],
+    Z_2d_y0, X_2d_y0, contour='y0', sharey=False, wspace=0.06)
+
+#%% 3.6 Parallel electron velocity (u_par_e > 0 along +b)
+
+d_y0, d_x0 = vac(S_y0, S_y0['upare']*u_scale), vac(S_x0, S_x0['upare']*u_scale)
+fig_ve_par = plot_panels('ve_par_planes', (1, 2), (25, 8),
+    [dict(data=d_y0, title=r'$u_{\parallel e}$ [km/s] (y = $y_c$)', clip=lin_clip(d_y0),
+          stream=je_streams(S_y0, ('uez', 'uex'))),
+     dict(data=d_x0, title=r'$u_{\parallel e}$ [km/s] (x = $x_c$)', clip=lin_clip(d_x0),
+          Hg=Z_2d_x0, Vg=Y_2d_x0, v_title=y_title, contour='x0', stream=je_streams(S_x0, ('uez', 'uey')))],
+    Z_2d_y0, X_2d_y0, contour='y0', sharey=False, wspace=0.06)
+
+#%%
+
+data = vac(S_xsym, np.abs(S_xsym['upare'])*u_scale)
+fig_ve_par_xsym = plot_panels('ve_par_xsym', (1, 1), (10, 8),
+    [dict(data=data, title=r'$|u_{\parallel e}|$ [km/s] (x = $x_{sym}$)', log=True, clip=log_clip(data))],
+    Z_2d_x0, Y_2d_x0, v_title=y_title, aspect='equal',
+    stream=(S_xsym['uez_par'], S_xsym['uey_par']))
+
+#%%
+
+fig_ve_par_z0 = plot_panels('ve_par_z0', (2, 3), (33, 20),
+    [dict(data=vac(S, np.abs(S['upare'])*u_scale),
+          title=r'$|u_{\parallel e}|$ [km/s] (z = %g)' % zs, log=True, clip=log_clip(vac(S, S['upare']*u_scale)),
+          contour=zs, stream=(S['uey_par'], S['uex_par']))
+     for zs, S in S_z.items()],
+    Y_2d_z0, X_2d_z0, h_title=y_title, v_title=x_title, aspect='equal')
+
+#%% 3.7 Perpendicular electron velocity (from ElectronSolver_3D: full 3D gradients)
+
+data = vac(S_xsym, S_xsym['ue_perp']*u_scale)
+fig_ve_perp_xsym = plot_panels('ve_perp_xsym', (1, 1), (10, 8),
+    [dict(data=data, title=r'$|u_{e\perp}|$ [km/s] (x = $x_{sym}$)', log=True, clip=log_clip(data))],
+    Z_2d_x0, Y_2d_x0, v_title=y_title, aspect='equal',
+    stream=(S_xsym['uez_perp'], S_xsym['uey_perp']))
+
+#%%
+
+fig_ve_perp_z0 = plot_panels('ve_perp_z0', (2, 3), (33, 20),
+    [dict(data=vac(S, S['ue_perp']*u_scale),
+          title=r'$|u_{e\perp}|$ [km/s] (z = %g)' % zs, log=True, clip=log_clip(vac(S, S['ue_perp']*u_scale)),
+          contour=zs, stream=(S['uey_perp'], S['uex_perp']))
+     for zs, S in S_z.items()],
+    Y_2d_z0, X_2d_z0, h_title=y_title, v_title=x_title, aspect='equal')
+
+#%% 3.8 Total electron velocity
+
+fig_ve_tot = plot_panels('ve_tot_planes', (1, 2), (25, 8),
+    [dict(data=vac(S_y0, S_y0['ue']*u_scale), title=r'$|u_{e}|$ [km/s] (y = $y_c$)', log=True,
+          clip=log_clip(vac(S_y0, S_y0['ue']*u_scale)), stream=(S_y0['uez'], S_y0['uex'])),
+     dict(data=vac(S_x0, S_x0['ue']*u_scale), title=r'$|u_{e}|$ [km/s] (x = $x_c$)', log=True,
+          clip=log_clip(vac(S_x0, S_x0['ue']*u_scale)),
+          Hg=Z_2d_x0, Vg=Y_2d_x0, v_title=y_title, contour='x0', stream=(S_x0['uez'], S_x0['uey']))],
+    Z_2d_y0, X_2d_y0, contour='y0', sharey=False, wspace=0.06)
+
+#%%
+
+data = vac(S_xsym, S_xsym['ue']*u_scale)
+fig_ve_tot_xsym = plot_panels('ve_tot_xsym', (1, 1), (10, 8),
+    [dict(data=data, title=r'$|u_{e}|$ [km/s] (x = $x_{sym}$)', log=True, clip=log_clip(data))],
+    Z_2d_x0, Y_2d_x0, v_title=y_title, aspect='equal',
+    stream=(S_xsym['uez'], S_xsym['uey']))
+
+#%%
+
+fig_ve_tot_z0 = plot_panels('ve_tot_z0', (2, 3), (33, 20),
+    [dict(data=vac(S, S['ue']*u_scale),
+          title=r'$|u_{e}|$ [km/s] (z = %g)' % zs, log=True, clip=log_clip(vac(S, S['ue']*u_scale)),
+          contour=zs, stream=(S['uey'], S['uex']))
+     for zs, S in S_z.items()],
+    Y_2d_z0, X_2d_z0, h_title=y_title, v_title=x_title, aspect='equal')
+
+#%% 3.9 Forces
+
+Fe_titles = [r'$F_{ze}$ [mN]', r'$F_{xe}$ [mN]', r'$F_{ye}$ [mN]']
+Fi_titles = [r'$F_{zi}$ [mN]', r'$F_{xi}$ [mN]', r'$F_{yi}$ [mN]']
+F_clips = [[1e-5, 1]]*3
+
+fig_Fe_y0 = plot_panels('Fe_y0', (1, 3), (33, 8),
+                        xyz_panels(S_y0, ['Fze', 'Fxe', 'Fye'], Fe_titles, F_clips, scale=F_scale*1e3),
+                        Z_2d_y0, X_2d_y0, contour='y0')
+
+#%%
+
+fig_Fe_x0 = plot_panels('Fe_x0', (1, 3), (33, 8),
+                        xyz_panels(S_x0, ['Fze', 'Fxe', 'Fye'], Fe_titles, F_clips, scale=F_scale*1e3),
+                        Z_2d_x0, Y_2d_x0, v_title=y_title, contour='x0')
+
+#%%
+
+fig_Fi_y0 = plot_panels('Fi_y0', (1, 3), (33, 8),
+                        xyz_panels(S_y0, ['Fzi', 'Fxi', 'Fyi'], Fi_titles, F_clips, scale=F_scale*1e3),
+                        Z_2d_y0, X_2d_y0, contour='y0')
+
+#%%
+
+fig_Fi_x0 = plot_panels('Fi_x0', (1, 3), (33, 8),
+                        xyz_panels(S_x0, ['Fzi', 'Fxi', 'Fyi'], Fi_titles, F_clips, scale=F_scale*1e3),
+                        Z_2d_x0, Y_2d_x0, v_title=y_title, contour='x0')
+
+#%% 3.10 Asymmetry about y = y_line (x = x_c plane, half domain)
+
+fig_asym_x0 = plot_panels('asymmetry_x0_yline3', (2, 2), (22, 15),
+    [dict(data=asym['n']*n0_m3,    title=r'$\Delta n$ $[m^{-3}]$'),
+     dict(data=asym['phi']*Te0,    title=r'$\Delta\phi$ $[V]$'),
+     dict(data=asym['Te']*Te0,     title=r'$\Delta T_e$ $[eV]$'),
+     dict(data=asym['ui']*u_scale, title=r'$\Delta\tilde{u}_{i}$ $[km/s]$', stream=(asym['uzi'], asym['uyi']))],
+    Z_2d_half, Y_2d_half, v_title=y_title, contour='x0', sharex=True)
+
+# %%

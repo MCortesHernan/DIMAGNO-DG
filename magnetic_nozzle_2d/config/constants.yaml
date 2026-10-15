@@ -8,8 +8,9 @@ physical:
   R0:        0.018       # Thruster radius [m]
   Te0:       10.0        # Electron temperature [eV]
   E_ion:     12.1        # Ionization energy of xenon [eV]
-  B0:        400.0       # Magnetic field [G]
-  B_norm:    2280.0      # Field normalization [G]
+  B0:        400.0       # Magnetic field at the throat centre [G]
+  # B_norm is no longer used: B_ref = m_i c0/(e R0) is computed in setup.build_parameters
+  # B_norm:    2280.0
   A:         131         # Atomic number (Xe)
   m_dot_i_ng: 100.0      # Ionic mass flow [ng/s]
 
